@@ -1,5 +1,5 @@
 name: Benchmark-Timer
-version: 0.7.0
+version: 0.7100
 abstract: Benchmarking with statistical confidence
 author: David Coppit <david@coppit.org>
 license: gpl
@@ -14,4 +14,4 @@ recommends:
 no_index:
   directory:
     - inc
-generated_by: Module::Install version 0.35
+generated_by: Module::Install version 0.36
