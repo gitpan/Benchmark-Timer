@@ -1,35 +1,46 @@
 # ========================================================================
 # Benchmark::Timer - Perl code benchmarking tool
-# Andrew Ho (andrew@zeuscat.com)
+# David Coppit <david@coppit.org>
 #
 # This program contains embedded documentation in Perl POD (Plain Old
 # Documentation) format. Search for the string "=head1" in this document
 # to find documentation snippets, or use "perldoc" to read it; utilities
 # like "pod2man" and "pod2html" can reformat as well.
 #
+# Copyright(c) 2004 David Coppit
 # Copyright(c) 2000-2001 Andrew Ho.
 #
-# This library is free software; you can redistribute it and/or modify
-# it under the same terms as Perl itself.
-#
-# Last modified April 20, 2001
 # ========================================================================
 
 =head1 NAME
 
-Benchmark::Timer - Perl code benchmarking tool
+Benchmark::Timer - Benchmarking with statistical confidence
 
 =head1 SYNOPSIS
 
-    use Benchmark::Timer;
-    $t = Benchmark::Timer->new(skip => 1);
+  # Non-statistical usage
+  use Benchmark::Timer;
+  $t = Benchmark::Timer->new(skip => 1);
 
-    for(0 .. 1000) {
-        $t->start('tag');
-        &long_running_operation();
-        $t->stop;
-    }
-    $t->report;
+  for(1 .. 1000) {
+      $t->start('tag');
+      &long_running_operation();
+      $t->stop('tag');
+  }
+  print $t->get_report;
+
+  # --------------------------------------------------------------------
+
+  # Statistical usage
+  use Benchmark::Timer;
+  $t = Benchmark::Timer->new(skip => 1, confidence => 97.5, error => 2);
+
+  while($t->need_more_samples('tag')) {
+      $t->start('tag');
+      &long_running_operation();
+      $t->stop('tag');
+  }
+  print $t->get_report;
 
 =head1 DESCRIPTION
 
@@ -43,10 +54,13 @@ The methodology is simple; create a Benchmark::Timer object, and wrap
 portions of code that you want to benchmark with C<start()> and C<stop()>
 method calls. You supply a unique tag, or event name, to those methods.
 This allows one Benchmark::Timer object to benchmark many pieces of code.
+If you provide error and confidence values, you can also use
+C<need_more_samples()> to determine, statistically, whether you need to
+collect more data.
 
 When you have run your code (one time or over multiple trials), you can
 obtain information about the running time by calling the C<results()>
-method or print a descriptive benchmark report by calling C<report()>.
+method or get a descriptive benchmark report by calling C<get_report()>.
 
 If you run your code over multiple trials, the average time is reported.
 This is wonderful for benchmarking time-critical portions of code in a
@@ -71,15 +85,18 @@ use Carp;
 use Time::HiRes qw( gettimeofday tv_interval );
 
 use vars qw($VERSION);
-$VERSION = 0.5;
+$VERSION = 0.6;
 
-use constant BEFORE    => 0;
-use constant ELAPSED   => 1;
-use constant LASTEVENT => 2;
-use constant EVENTS    => 3;
-use constant SKIP      => 4;
-use constant SKIPCOUNT => 5;
-
+use constant BEFORE     => 0;
+use constant ELAPSED    => 1;
+use constant LASTEVENT  => 2;
+use constant EVENTS     => 3;
+use constant SKIP       => 4;
+use constant MINIMUM    => 5;
+use constant SKIPCOUNT  => 6;
+use constant CONFIDENCE => 7;
+use constant ERROR      => 8;
+use constant STAT       => 9;
 
 # ------------------------------------------------------------------------
 # Constructor
@@ -87,9 +104,40 @@ use constant SKIPCOUNT => 5;
 =item $t = Benchmark::Timer->new( [options] );
 
 Constructor for the Benchmark::Timer object; returns a reference to a
-timer object. Takes named arguments, of which right now there is only
-one, skip, which is the number of trials (if any) to skip before
-recording timing information.
+timer object. Takes the following named arguments:
+
+=over 4
+
+=item skip
+
+The number of trials (if any) to skip before recording timing information.
+
+=item minimum
+
+The minimum number of trials to run.
+
+=item error
+
+A percentage between 0 and 100 which indicates how much error you are willing
+to tolerate in the average time measured by the benchmark.  For example, a
+value of 1 means that you want the reported average time to be within 1% of
+the real average time. C<need_more_samples()> will use this value to determine
+when it is okay to stop collecting data.
+
+If you specify an error you must also specify a confidence.
+
+=item confidence
+
+A percentage between 0 and 100 which indicates how confident you want to be in
+the error measured by the benchmark. For example, a value of 97.5 means that
+you want to be 97.5% confident that the real average time is within the error
+margin you have specified. C<need_more_samples()> will use this value to
+compute the estimated error for the collected data, so that it can determine
+when it is okay to stop.
+
+If you specify a confidence you must also specify an error.
+
+=back
 
 =cut
 
@@ -122,7 +170,11 @@ sub reset {
     $self->[LASTEVENT] = undef;    # what the last event was
     $self->[EVENTS] = [];          # keep list of events in order seen
     $self->[SKIP] = 0;             # how many events to skip
+    $self->[MINIMUM] = 1;          # how many events to skip
     $self->[SKIPCOUNT] = {};       # trial skip storage
+    delete $self->[CONFIDENCE];    # confidence factor
+    delete $self->[ERROR];         # allowable error
+    delete $self->[STAT];          # stat objects for each tag
 
     if(exists $args{skip}) {
         croak 'argument skip must be a non-negative integer'
@@ -132,6 +184,50 @@ sub reset {
         $self->[SKIP] = $args{skip};
         delete $args{skip};
     }
+
+    if(exists $args{minimum}) {
+        croak 'argument minimum must be a non-negative integer'
+            unless defined $args{minimum}
+               and $args{minimum} !~ /\D/
+               and int $args{minimum} == $args{minimum};
+        croak 'argument minimum must greater than or equal to skip'
+            unless defined $args{minimum}
+               and $args{minimum} >= $self->[SKIP];
+        $self->[MINIMUM] = $args{minimum};
+        delete $args{minimum};
+    }
+
+    my $confidence_is_valid = 
+        (defined $args{confidence}
+           and $args{confidence} =~ /^\d*\.?\d*$/
+           and $args{confidence} > 0
+           and $args{confidence} < 100);
+
+    my $error_is_valid = 
+        (defined $args{error}
+           and $args{error} =~ /^\d*\.?\d*$/
+           and $args{error} > 0
+           and $args{error} < 100);
+
+    if ($confidence_is_valid && !$error_is_valid ||
+        !$confidence_is_valid && $error_is_valid)
+    {
+        carp 'you must specify both confidence and error'
+    }
+    elsif ($confidence_is_valid && $error_is_valid)
+    {
+        $self->[CONFIDENCE] = $args{confidence};
+        delete $args{confidence};
+
+        $self->[ERROR] = $args{error};
+        delete $args{error};
+
+        # Demand load the module we need. We could just
+        # require people to install it...
+        croak 'Could not load the Statistics::PointEstimation module'
+          unless eval "require Statistics::PointEstimation";
+    }
+
     if(%args) {
         carp 'skipping unknown arguments';
     }
@@ -184,7 +280,7 @@ are timing, and defaults to the $tag supplied to the last C<start()> call.
 If a $tag is supplied, it must correspond to one given to a previously
 called C<start()> call. It returns the elapsed time in milliseconds.
 C<stop()> throws an exception if the timer gets out of sync (e.g. the
-number of C<start()>s does not match the number of C<stop()>s.
+number of C<start()>s does not match the number of C<stop()>s.)
 
 =cut
 
@@ -203,42 +299,132 @@ sub stop {
     my $before = $self->[BEFORE]->{$event}->[$i];
     croak 'timer out of sync' unless defined $before;
 
+    # Create a stats object if we need to
+    if (defined $self->[CONFIDENCE] && !defined $self->[STAT]->{$event})
+    {
+      $self->[STAT]->{$event} = Statistics::PointEstimation->new;
+      $self->[STAT]->{$event}->set_significance($self->[CONFIDENCE]);
+    }
+
     my $elapsed = tv_interval($before, $after);
+
     if($i > 0) {
         push @{$self->[ELAPSED]->{$event}}, $elapsed;
     } else {
         $self->[ELAPSED]->{$event} = [ $elapsed ];
     }
+
+    $self->[STAT]->{$event}->add_data($elapsed)
+      if defined $self->[STAT]->{$event};
+
     return $elapsed;
 }
 
 
-=item $t->report;
+=item $t->need_more_samples($tag);
 
-Print a simple report on the collected timings to STDERR. This report
-prints the number of trials run, the total time taken, and, if more than
-one trial was run, the average time needed to run one trial. It prints
-the events out in the order they were C<start()>ed.
+Compute the estimated error in the average of the data collected thus far, and
+return true if that error exceeds the user-specified error.  The optional $tag
+is the event for which you are timing, and defaults to the $tag supplied to
+the last C<start()> call or the default tag if C<start()> has not yet been
+called.  If a $tag is supplied, it must correspond to one given to a
+previously called C<start()> call. 
+
+This routine assumes that the data are normally distributed.
 
 =cut
 
-sub report {
+sub need_more_samples {
     my $self = shift;
-    foreach my $event (@{$self->[EVENTS]}) {
-        unless(exists $self->[ELAPSED]->{$event}) {
-            carp join ' ', 'event', $event, 'still running, skipping';
-            last;
-        }
-        my @times = @{$self->[ELAPSED]->{$event}};
-        my $n = scalar @times;
-        my $total = 0; $total += $_ foreach @times;
+    my $event = shift || $self->[LASTEVENT] || '_default';
 
-        printf STDERR '%d trial%s of %s (%s total)',
-            $n, $n == 1 ? '' : 's', $event, timestr($total);
-        printf STDERR ', %s/trial', timestr($total / $n) if $n > 1;
-        print STDERR "\n";
+    carp 'You must set the confidence and error in order to use need_more_samples'
+      unless defined $self->[CONFIDENCE];
+
+    # In case this function is called before any trials are run
+    return 1
+      if !defined $self->[STAT]->{$event} ||
+      $self->[STAT]->{$event}->count < $self->[MINIMUM];
+
+    # For debugging
+#    printf STDERR "Average: %.5f +/- %.5f, Samples: %d\n",
+#      $self->[STAT]->{$event}->mean(), $self->[STAT]->{$event}->delta(),
+#      $self->[STAT]->{$event}->count;
+#    printf STDERR "Percent Error: %.5f > %.5f\n",
+#      $self->[STAT]->{$event}->delta() / $self->[STAT]->{$event}->mean() * 100,
+#      $self->[ERROR];
+
+    return (($self->[STAT]->{$event}->delta() / $self->[STAT]->{$event}->mean() * 100) >
+      $self->[ERROR]);
+}
+
+
+=item $t->get_report($tag);
+
+Get a simple report on the collected timings to STDERR, either for a single
+specified tag or all tags if none is specified. This report prints the number
+of trials run, the total time taken, and, if more than one trial was run, the
+average time needed to run one trial and error information. It prints the
+events out in the order they were C<start()>ed.
+
+=cut
+
+sub get_report {
+    my $self = shift;
+    my $event = shift || $self->[LASTEVENT] || undef;
+
+    my $report = '';
+
+    if (defined $event)
+    {
+      $report = $self->_get_report($event);
     }
-    return;
+    else
+    {
+      foreach my $event (@{$self->[EVENTS]}) {
+        $report .= $self->_get_report($event);
+      }
+    }
+    return $report;
+}
+
+
+sub _get_report {
+    my $self = shift;
+    my $event = shift;
+
+    unless(exists $self->[ELAPSED]->{$event}) {
+      return "Tag $event is still running or has not completed its skipped runs, skipping\n";
+    }
+
+    my $report = '';
+
+    my @times = @{$self->[ELAPSED]->{$event}};
+    my $n = scalar @times;
+    my $total = 0; $total += $_ foreach @times;
+
+    if ($n == 1)
+    {
+      $report .= sprintf "\%d trial of \%s (\%s total)\n",
+        $n, $event, timestr($total);
+    }
+    else
+    {
+      $report .= sprintf "\%d trials of \%s (\%s total), \%s/trial\n",
+        $n, $event, timestr($total), timestr($total / $n);
+    }
+
+    if (defined $self->[STAT]->{$event})
+    {
+      my $delta = 0;
+      $delta = $self->[STAT]->{$event}->delta()
+        if defined $self->[STAT]->{$event}->delta();
+      
+      $report .= sprintf "Error: +/- \%.5f with \%s confidence\n",
+        $delta, $self->[CONFIDENCE];
+    }
+
+    return $report;
 }
 
 
@@ -375,7 +561,8 @@ sub commify {
 =head1 BUGS
 
 Benchmarking is an inherently futile activity, fraught with uncertainty
-not dissimilar to that experienced in quantum mechanics.
+not dissimilar to that experienced in quantum mechanics. But things are a
+little better if you apply statistics.
 
 =head1 SEE ALSO
 
@@ -383,14 +570,12 @@ L<Benchmark>, L<Time::HiRes>, L<Time::Stopwatch>, L<Statistics::Descriptive>
 
 =head1 AUTHOR
 
-Andrew Ho E<lt>andrew@zeuscat.comE<gt>
+The original code (written before April 20, 2001) was written by Andrew Ho
+E<lt>andrew@zeuscat.comE<gt>, and is copyright (c) 2000-2001 Andrew Ho.
+Versions up to 0.5 are distributed under the same terms as Perl.
 
-=head1 COPYRIGHT
-
-Copyright(c) 2000-2001 Andrew Ho.
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
+Maintenance of this module is now being done by David Coppit
+E<lt>david@coppit.orgE<gt>.
 
 =cut
 

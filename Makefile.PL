@@ -1,29 +1,38 @@
-# ========================================================================
-# Makefile.PL - generate Makefile for Benchmark::Timer Perl module
-# Andrew Ho (andrew@zeuscat.com)
-#
-# Usage: perl Makefile.PL
-# See the Timer.pm file for documentation about this module.
-#
-# Last modified March 23, 2001
-# ========================================================================
+#!/usr/bin/perl
+# use perl                                  -*- mode: Perl; -*-
 
-use ExtUtils::MakeMaker;
+use strict;
+use inc::Module::Install;
+use lib 'lib';
+use File::Spec;
 
-WriteMakefile(
-    NAME          => 'Benchmark::Timer',
-    VERSION_FROM  => 'Timer.pm',
-    ABSTRACT_FROM => 'Timer.pm',
-    PM            => {
-        'Timer.pm' => '$(INST_LIBDIR)/Timer.pm',
-    },
-    PREREQ_PM     => {
-        'Time::HiRes' => 0,
-    },
+require 5.004;
+
+Check_Custom_Installation();
+
+print "\n","-"x78,"\n\n";
+
+name            ('Benchmark-Timer');
+author          ('David Coppit <david@coppit.org>');
+abstract_from   ('lib/Benchmark/Timer.pm');
+version_from    ('lib/Benchmark/Timer.pm');
+license         ('gpl');
+clean_files     ('t/temp');
+
+requires        ('Time::HiRes');
+features        (
+  'Statistical sampling support' => [
+    recommends( 'Statistics::PointEstimation' => 0 ),
+  ],
 );
 
-exit 0;
+skip            ('delta.pl');
 
+include('ExtUtils/AutoInstall.pm');
+auto_install( -default => 0 );
 
-# ========================================================================
-__END__
+WriteAll();
+
+print "\n","-"x78,"\n";
+
+exit;

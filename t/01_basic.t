@@ -35,7 +35,7 @@ $t->start('tag');
 $t->stop;
 ok(1);
 
-$t->report;
+print $t->get_report;
 ok(1);
 
 my $result = $t->result('tag');

@@ -1,11 +1,20 @@
 Revision history for Perl extension Benchmark::Timer.
 
+0.6 - September 2, 2004
+
+- Maintenance of the module transferred to David Coppit <david@coppit.org>
+- License changed to GNU GPL.
+- Improved reporting to support multiple tags
+- Added statistical sampling, allowing the user to time code until a certain
+  confidence level is reached. (Added error() and confidence() to support this
+  functionality)
+
 0.5 - April 20, 2001
 
   * Added functionality to skip trials when doing repeated trials
     via a "skip" constructor parameter, plus tests for this.
   * Consistently use croak() and carp() instead of die() and warn().
-  * Add error tests to test that error conditions are properly met.
+  * Added error tests to test that error conditions are properly met.
   * Renamed Benchmark::Timer object to $t in the test cases to make
     them more conventional.
 
