@@ -1,0 +1,25 @@
+Revision history for Perl extension Benchmark::Timer.
+
+0.4 - March 29, 2001
+
+  * Changed internal method representation to an array instead of a
+    hash, for a tiny but measureable speed increase
+  * Corrected timestr() to display microseconds and show integral times
+  * Added delta.pl, a small script that calculates the approximate
+    overhead of using Benchmark::Timer versus plain Time::HiRes calls.
+
+0.3 - March 26, 2001
+
+  * Renamed Time::Timer to Benchmark::Timer after some discussion on
+    the comp.lang.perl.modules newsgroup
+
+0.2 - March 24, 2001
+
+  * Added $t->result, $t->results, and $t->data methods to access data.
+  * warn() instead of puke when $t->report is called while an event is
+    still pending (thanks Ilmari Karonen <perl@itz.pp.sci.fi>).
+
+
+0.1 - March 23, 2001
+
+  * Original version, created by Andrew Ho (andrew@zeuscat.com), rolled.

@@ -1,0 +1,165 @@
+This is Benchmark::Timer, a simple Perl code benchmarking tool.
+You can install it in the typical CPAN module manner:
+
+    % perl Makefile.PL
+    % make
+    % make test
+    # make install
+
+You can find the distribution at the following URL:
+
+    http://www.zeuscat.com/andrew/src/Benchmark-Timer-0.4.tar.gz
+
+Appended below is are the Changes and POD documentation from Timer.pm.
+
+Contact Andrew Ho (andrew@zeuscat.com) with comments or bug reports.
+
+
+========================================================================
+
+Revision history for Perl extension Benchmark::Timer.
+
+0.4 - March 29, 2001
+
+  * Changed internal method representation to an array instead of a
+    hash, for a tiny but measureable speed increase
+  * Corrected timestr() to display microseconds and show integral times
+  * Added delta.pl, a small script that calculates the approximate
+    overhead of using Benchmark::Timer versus plain Time::HiRes calls.
+
+0.3 - March 26, 2001
+
+  * Renamed Time::Timer to Benchmark::Timer after some discussion on
+    the comp.lang.perl.modules newsgroup
+
+0.2 - March 24, 2001
+
+  * Added $t->result, $t->results, and $t->data methods to access data.
+  * warn() instead of puke when $t->report is called while an event is
+    still pending (thanks Ilmari Karonen <perl@itz.pp.sci.fi>).
+
+
+0.1 - March 23, 2001
+
+  * Original version, created by Andrew Ho (andrew@zeuscat.com), rolled.
+
+
+========================================================================
+
+NAME
+
+    Benchmark::Timer - Perl code benchmarking tool
+
+SYNOPSIS
+
+        use Benchmark::Timer;
+        $t = Benchmark::Timer->new;
+
+        for(my $i = 0; $i < 1000; $i++) {
+            $t->start('tag');
+            &long_running_operation();
+            $t->stop;
+        }
+        $t->report;
+
+DESCRIPTION
+
+    The Benchmark::Timer class allows you to time portions of code
+    conveniently, as well as benchmark code by allowing timings of repeated
+    trials. It is perfect for when you need more precise information about
+    the running time of portions of your code than the Benchmark module will
+    give you, but don't want to go all out and profile your code.
+
+    The methodology is simple; create a Benchmark::Timer object, and wrap
+    portions of code that you want to benchmark with `start()' and `stop()'
+    method calls. You supply a unique tag, or event name, to those methods.
+    This allows one Benchmark::Timer object to benchmark many pieces of
+    code.
+
+    When you have run your code (one time or over multiple trials), you can
+    obtain information about the running time by calling the `results()'
+    method or print a descriptive benchmark report by calling `report()'.
+
+METHODS
+
+    $t = Benchmark::Timer->new;
+        Constructor for the Benchmark::Timer object; returns a reference to
+        a timer object. Takes no arguments.
+
+    $t->reset;
+        Reset the timer object to the pristine state it started in. Erase
+        all memory of events and any previously accumulated timings. Returns
+        a reference to the timer object.
+
+    $t->start($tag);
+        Record the current time so that when `stop()' is called, we can
+        calculate an elapsed time. Supply a $tag which is simply a string
+        that is the descriptive name of the event you are timing. If you do
+        not supply a $tag, the last event tag is used; if there is none, a
+        "_default" tag is used instead.
+
+    $t->stop($tag);
+        Record timing information. The optional $tag is the event for which
+        you are timing, and defaults to the $tag supplied to the last
+        `start()' call. If a $tag is supplied, it must correspond to one
+        given to a previously called `start()' call. It returns the elapsed
+        time in milliseconds.
+
+    $t->report;
+        Print a simple report on the collected timings to STDERR. This
+        report prints the number of trials run, the total time taken, and,
+        if more than one trial was run, the average time needed to run one
+        trial. It prints the events out in the order they were `start()'ed.
+
+    $t->result($event);
+        Return the time it took for $event to elapse, or the mean time it
+        took for $event to elapse once, if $event happened more than once.
+        `result()' will complain (via a warning) if an event is still
+        active.
+
+    $t->results;
+        Returns the timing data as a hash keyed on event tags where each
+        value is the time it took to run that event, or the are the average
+        time it took, if that event ran more than once. In scalar context it
+        returns a reference to that hash. The return value is actually an
+        array, so that the original event order is preserved.
+
+    $t->data($event), $t->data;
+        These methods are useful if you want to recover the full internal
+        timing data to roll your own reports.
+
+        If called with an $event, returns the raw timing data for that
+        $event as an array (or a reference to an array if called in scalar
+        context). This is useful for feeding to something like the
+        Statistics::Descriptive package.
+
+        If called with no arguments, returns the raw timing data as a hash
+        keyed on event tags, where the values of the hash are lists of
+        timings for that event. In scalar context, it returns a reference to
+        that hash. As with `results()', the data is internally represented
+        as an array so you can recover the original event order by assigning
+        to an array instead of a hash.
+
+BUGS
+
+    Benchmarking is an inherently futile activity, fraught with uncertainty
+    not dissimilar to that experienced in quantum mechanics.
+
+SEE ALSO
+
+    the Benchmark manpage, the Time::HiRes manpage, the Time::Stopwatch
+    manpage, the Statistics::Descriptive manpage
+
+AUTHOR
+
+    Andrew Ho <andrew@zeuscat.com>
+
+COPYRIGHT
+
+    Copyright(c) 2000-2001 Andrew Ho.
+
+    This library is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
+
+========================================================================
