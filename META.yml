@@ -1,10 +1,11 @@
 name: Benchmark-Timer
-version: 0.6
+version: 0.6.1
 abstract: Benchmarking with statistical confidence
 author: David Coppit <david@coppit.org>
 license: gpl
 distribution_type: module
 requires:
+  perl: 5.004
   Time::HiRes: 0
 recommends:
   Statistics::PointEstimation: 0
