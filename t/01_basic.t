@@ -1,5 +1,5 @@
 # ========================================================================
-# t/00_basic.t - ensure that Benchmark::Timer object can be created and used
+# t/01_basic.t - ensure that Benchmark::Timer object can be created, used
 # Andrew Ho (andrew@zeuscat.com)
 #
 # Test basic usage of the Benchmark::Timer library.
@@ -10,7 +10,7 @@
 #
 # This script is intended to be run as a target of Test::Harness.
 #
-# Last modified March 29, 2001
+# Last modified April 20, 2001
 # ========================================================================
 
 use strict;
@@ -25,38 +25,38 @@ BEGIN { plan tests => 12 }
 use Benchmark::Timer;
 ok(1);
 
-my $timer = Benchmark::Timer->new;
-ok($timer ? 1 : 0);
+my $t = Benchmark::Timer->new;
+ok($t ? 1 : 0);
 
-$timer->reset;
+$t->reset;
 ok(1);
 
-$timer->start('tag');
-$timer->stop;
+$t->start('tag');
+$t->stop;
 ok(1);
 
-$timer->report;
+$t->report;
 ok(1);
 
-my $result = $timer->result('tag');
+my $result = $t->result('tag');
 ok(defined $result ? 1 : 0);
 
-my @results = $timer->results;
+my @results = $t->results;
 ok(@results == 2 ? 1 : 0);
 
-my $results = $timer->results;
+my $results = $t->results;
 ok(ref $results eq 'ARRAY' ? 1 : 0);
 
-my @data = $timer->data('tag');
+my @data = $t->data('tag');
 ok(@data == 1 ? 1 : 0);
 
-my $data = $timer->data('tag');
+my $data = $t->data('tag');
 ok(ref $data eq 'ARRAY' ? 1 : 0);
 
-@data = $timer->data;
+@data = $t->data;
 ok(@data == 2 ? 1 : 0);
 
-$data = $timer->data;
+$data = $t->data;
 ok(ref $data eq 'ARRAY' ? 1 : 0);
 
 

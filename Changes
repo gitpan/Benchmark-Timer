@@ -1,17 +1,26 @@
 Revision history for Perl extension Benchmark::Timer.
 
+0.5 - April 20, 2001
+
+  * Added functionality to skip trials when doing repeated trials
+    via a "skip" constructor parameter, plus tests for this.
+  * Consistently use croak() and carp() instead of die() and warn().
+  * Add error tests to test that error conditions are properly met.
+  * Renamed Benchmark::Timer object to $t in the test cases to make
+    them more conventional.
+
 0.4 - March 29, 2001
 
   * Changed internal method representation to an array instead of a
-    hash, for a tiny but measureable speed increase
-  * Corrected timestr() to display microseconds and show integral times
+    hash, for a tiny but measureable speed increase.
+  * Corrected timestr() to display microseconds and show integral times.
   * Added delta.pl, a small script that calculates the approximate
     overhead of using Benchmark::Timer versus plain Time::HiRes calls.
 
 0.3 - March 26, 2001
 
   * Renamed Time::Timer to Benchmark::Timer after some discussion on
-    the comp.lang.perl.modules newsgroup
+    the comp.lang.perl.modules newsgroup.
 
 0.2 - March 24, 2001
 

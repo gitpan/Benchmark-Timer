@@ -12,7 +12,7 @@
 # This library is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
-# Last modified March 29, 2001
+# Last modified April 20, 2001
 # ========================================================================
 
 =head1 NAME
@@ -22,9 +22,9 @@ Benchmark::Timer - Perl code benchmarking tool
 =head1 SYNOPSIS
 
     use Benchmark::Timer;
-    $t = Benchmark::Timer->new;
+    $t = Benchmark::Timer->new(skip => 1);
 
-    for(my $i = 0; $i < 1000; $i++) {
+    for(0 .. 1000) {
         $t->start('tag');
         &long_running_operation();
         $t->stop;
@@ -48,6 +48,11 @@ When you have run your code (one time or over multiple trials), you can
 obtain information about the running time by calling the C<results()>
 method or print a descriptive benchmark report by calling C<report()>.
 
+If you run your code over multiple trials, the average time is reported.
+This is wonderful for benchmarking time-critical portions of code in a
+rigorous way. You can also optionally choose to skip any number of initial
+trials to cut down on initial case irregularities.
+
 =head1 METHODS
 
 =over 4
@@ -66,21 +71,25 @@ use Carp;
 use Time::HiRes qw( gettimeofday tv_interval );
 
 use vars qw($VERSION);
-$VERSION = 0.4;
+$VERSION = 0.5;
 
 use constant BEFORE    => 0;
 use constant ELAPSED   => 1;
 use constant LASTEVENT => 2;
 use constant EVENTS    => 3;
+use constant SKIP      => 4;
+use constant SKIPCOUNT => 5;
 
 
 # ------------------------------------------------------------------------
 # Constructor
 
-=item $t = Benchmark::Timer->new;
+=item $t = Benchmark::Timer->new( [options] );
 
 Constructor for the Benchmark::Timer object; returns a reference to a
-timer object. Takes no arguments.
+timer object. Takes named arguments, of which right now there is only
+one, skip, which is the number of trials (if any) to skip before
+recording timing information.
 
 =cut
 
@@ -88,7 +97,7 @@ sub new {
     my $class = shift;
     my $self = [];
     bless $self, $class;
-    return $self->reset;
+    return $self->reset(@_);
 }
 
 
@@ -99,16 +108,34 @@ sub new {
 
 Reset the timer object to the pristine state it started in.
 Erase all memory of events and any previously accumulated timings.
-Returns a reference to the timer object.
+Returns a reference to the timer object. It takes the same arguments
+the constructor takes.
 
 =cut
 
 sub reset {
     my $self = shift;
+    my %args = @_;
+
     $self->[BEFORE] = {};          # [ gettimeofday ] storage
     $self->[ELAPSED] = {};         # elapsed fractional seconds
     $self->[LASTEVENT] = undef;    # what the last event was
     $self->[EVENTS] = [];          # keep list of events in order seen
+    $self->[SKIP] = 0;             # how many events to skip
+    $self->[SKIPCOUNT] = {};       # trial skip storage
+
+    if(exists $args{skip}) {
+        croak 'argument skip must be a non-negative integer'
+            unless defined $args{skip}
+               and $args{skip} !~ /\D/
+               and int $args{skip} == $args{skip};
+        $self->[SKIP] = $args{skip};
+        delete $args{skip};
+    }
+    if(%args) {
+        carp 'skipping unknown arguments';
+    }
+
     return $self;
 }
 
@@ -130,11 +157,22 @@ sub start {
     my $self = shift;
     my $event = shift || $self->[LASTEVENT] || '_default';
     $self->[LASTEVENT] = $event;
-    if(exists $self->[BEFORE]->{$event}) {
-        push @{$self->[BEFORE]->{$event}}, [ gettimeofday ];
+    if(exists $self->[SKIPCOUNT]->{$event}) {
+        if($self->[SKIPCOUNT]->{$event} > 1) {
+            $self->[SKIPCOUNT]->{$event}--;
+        } else {
+            $self->[SKIPCOUNT]->{$event} = 0;
+            push @{$self->[BEFORE]->{$event}}, [ gettimeofday ];
+        }
     } else {
         push @{$self->[EVENTS]}, $event;
-        $self->[BEFORE]->{$event} = [ [ gettimeofday ] ];
+        $self->[SKIPCOUNT]->{$event} = $self->[SKIP] + 1;
+        if($self->[SKIPCOUNT]->{$event} > 1) {
+            $self->[SKIPCOUNT]->{$event}--;
+        } else {
+            $self->[SKIPCOUNT]->{$event} = 0;
+            $self->[BEFORE]->{$event} = [ [ gettimeofday ] ]
+        }
     }
 }
 
@@ -145,6 +183,8 @@ Record timing information. The optional $tag is the event for which you
 are timing, and defaults to the $tag supplied to the last C<start()> call.
 If a $tag is supplied, it must correspond to one given to a previously
 called C<start()> call. It returns the elapsed time in milliseconds.
+C<stop()> throws an exception if the timer gets out of sync (e.g. the
+number of C<start()>s does not match the number of C<stop()>s.
 
 =cut
 
@@ -153,13 +193,15 @@ sub stop {
     my $self = shift;
     my $event = shift || $self->[LASTEVENT] || '_default';
 
-    die 'must call $t->start($event) before $t->stop($event)'
-        unless exists $self->[BEFORE]->{$event};
+    croak 'must call $t->start($event) before $t->stop($event)'
+        unless exists $self->[SKIPCOUNT]->{$event};
+
+    return if $self->[SKIPCOUNT]->{$event} > 0;
 
     my $i = exists $self->[ELAPSED]->{$event} ?
         scalar @{$self->[ELAPSED]->{$event}} : 0;
     my $before = $self->[BEFORE]->{$event}->[$i];
-    die 'timer out of sync' unless defined $before;
+    croak 'timer out of sync' unless defined $before;
 
     my $elapsed = tv_interval($before, $after);
     if($i > 0) {
@@ -184,7 +226,7 @@ sub report {
     my $self = shift;
     foreach my $event (@{$self->[EVENTS]}) {
         unless(exists $self->[ELAPSED]->{$event}) {
-            warn join ' ', 'event', $event, 'still running, skipping';
+            carp join ' ', 'event', $event, 'still running, skipping';
             last;
         }
         my @times = @{$self->[ELAPSED]->{$event}};
@@ -212,7 +254,7 @@ sub result {
     my $self = shift;
     my $event = shift || $self->[LASTEVENT] || '_default';
     unless(exists $self->[ELAPSED]->{$event}) {
-        warn join ' ', 'event', $event, 'still running';
+        carp join ' ', 'event', $event, 'still running';
         return;
     }
     my @times = @{$self->[ELAPSED]->{$event}};

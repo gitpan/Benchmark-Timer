@@ -6,3 +6,5 @@ Timer.pm
 delta.pl
 t/00_loadlib.t
 t/01_basic.t
+t/02_skip.t
+t/99_errors.t

@@ -6,9 +6,13 @@ You can install it in the typical CPAN module manner:
     % make test
     # make install
 
-You can find the distribution at the following URL:
+You can find the latest distribution at the following URL:
 
-    http://www.zeuscat.com/andrew/src/Benchmark-Timer-0.4.tar.gz
+    http://www.zeuscat.com/andrew/src/Benchmark-Timer-0.5.tar.gz
+
+You can also find it at your friendly neighborhood CPAN:
+
+    http://www.perl.com/CPAN-local/modules/by-module/Benchmark/
 
 Appended below is are the Changes and POD documentation from Timer.pm.
 
@@ -19,18 +23,27 @@ Contact Andrew Ho (andrew@zeuscat.com) with comments or bug reports.
 
 Revision history for Perl extension Benchmark::Timer.
 
+0.5 - April 20, 2001
+
+  * Added functionality to skip trials when doing repeated trials
+    via a "skip" constructor parameter, plus tests for this.
+  * Consistently use croak() and carp() instead of die() and warn().
+  * Add error tests to test that error conditions are properly met.
+  * Renamed Benchmark::Timer object to $t in the test cases to make
+    them more conventional.
+
 0.4 - March 29, 2001
 
   * Changed internal method representation to an array instead of a
-    hash, for a tiny but measureable speed increase
-  * Corrected timestr() to display microseconds and show integral times
+    hash, for a tiny but measureable speed increase.
+  * Corrected timestr() to display microseconds and show integral times.
   * Added delta.pl, a small script that calculates the approximate
     overhead of using Benchmark::Timer versus plain Time::HiRes calls.
 
 0.3 - March 26, 2001
 
   * Renamed Time::Timer to Benchmark::Timer after some discussion on
-    the comp.lang.perl.modules newsgroup
+    the comp.lang.perl.modules newsgroup.
 
 0.2 - March 24, 2001
 
@@ -45,7 +58,6 @@ Revision history for Perl extension Benchmark::Timer.
 
 
 ========================================================================
-
 NAME
 
     Benchmark::Timer - Perl code benchmarking tool
@@ -53,9 +65,9 @@ NAME
 SYNOPSIS
 
         use Benchmark::Timer;
-        $t = Benchmark::Timer->new;
+        $t = Benchmark::Timer->new(skip => 1);
 
-        for(my $i = 0; $i < 1000; $i++) {
+        for(0 .. 1000) {
             $t->start('tag');
             &long_running_operation();
             $t->stop;
@@ -80,16 +92,24 @@ DESCRIPTION
     obtain information about the running time by calling the `results()'
     method or print a descriptive benchmark report by calling `report()'.
 
+    If you run your code over multiple trials, the average time is reported.
+    This is wonderful for benchmarking time-critical portions of code in a
+    rigorous way. You can also optionally choose to skip any number of
+    initial trials to cut down on initial case irregularities.
+
 METHODS
 
-    $t = Benchmark::Timer->new;
+    $t = Benchmark::Timer->new( [options] );
         Constructor for the Benchmark::Timer object; returns a reference to
-        a timer object. Takes no arguments.
+        a timer object. Takes named arguments, of which right now there is
+        only one, skip, which is the number of trials (if any) to skip
+        before recording timing information.
 
     $t->reset;
         Reset the timer object to the pristine state it started in. Erase
         all memory of events and any previously accumulated timings. Returns
-        a reference to the timer object.
+        a reference to the timer object. It takes the same arguments the
+        constructor takes.
 
     $t->start($tag);
         Record the current time so that when `stop()' is called, we can
@@ -103,7 +123,9 @@ METHODS
         you are timing, and defaults to the $tag supplied to the last
         `start()' call. If a $tag is supplied, it must correspond to one
         given to a previously called `start()' call. It returns the elapsed
-        time in milliseconds.
+        time in milliseconds. `stop()' throws an exception if the timer gets
+        out of sync (e.g. the number of `start()'s does not match the number
+        of `stop()'s.
 
     $t->report;
         Print a simple report on the collected timings to STDERR. This
@@ -161,5 +183,3 @@ COPYRIGHT
     This library is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.
 
-
-========================================================================
