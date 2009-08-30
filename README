@@ -57,7 +57,7 @@ you can also do "man Benchmark::Timer".
 HOMEPAGE
 
 The CPAN Page:
-http://search.cpan.org/~dcoppit/Benchmark-Timer/
+http://search.cpan.org/dist/Benchmark-Timer/
 
 The Google Code page:
 http://code.google.com/p/benchmark-timer/

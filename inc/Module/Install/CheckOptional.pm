@@ -2,18 +2,18 @@
 package Module::Install::CheckOptional;
 
 use strict;
-use 5.004;
-
-use vars qw( @ISA $VERSION );
+use 5.005;
 
 use Carp;
 # For module install and version checks
 use Module::AutoInstall;
 
-use Module::Install::Base;
-@ISA = qw( Module::Install::Base );
+use vars qw( @ISA $VERSION );
 
-$VERSION = sprintf "%d.%02d%02d", q/0.1.0/ =~ /(\d+)/g;
+use Module::Install::Base;
+@ISA = qw( Module::Install::Base Module::AutoInstall );
+
+$VERSION = sprintf "%d.%02d%02d", q/0.10.01/ =~ /(\d+)/g;
 
 # ---------------------------------------------------------------------------
 
@@ -28,8 +28,8 @@ sub check_optional
   croak "check_optional requires a dependency and version such as \"Carp => 1.03\""
     unless defined $module and defined $version;
 
-	return if defined Module::AutoInstall::_version_check(
-	  Module::AutoInstall::_load($module), $version );
+	return if Module::AutoInstall::_version_cmp(
+	  Module::AutoInstall::_load($module), $version ) >= 0;
 
 	print<<EOF;
 *************************************************************************** 
@@ -43,5 +43,4 @@ EOF
 
 # ---------------------------------------------------------------------------
 
-#line 97
-
+#line 98
